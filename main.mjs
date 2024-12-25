@@ -1,170 +1,184 @@
 'use strict';
+import Light from "./fglight.mjs";               // Import Light class
+import Model from "./fgmodel.mjs";               // Import Model class
+import TrackballRotator from "./Utils/trackball-rotator.mjs"; // Import TrackballRotator for camera control
 
-// Import required modules
-import Light from "./fgLight.mjs";
-import Model from "./fgModel.mjs";
-import TrackballRotator from "./Utils/trackball-rotator.mjs";
+let gl;                         // The WebGL context.
+let surface;                    // A surface model (3D object).
+let lightSurface;               // A light source model.
+let shProgram;                  // The shader program for rendering the surface.
+let shLightProgram;             // The shader program for rendering the light source.
+let spaceball;                  // Trackball rotator for camera control.
 
-// Global variables
-let gl;                          // WebGL context
-let modelSurface;                // Model surface object
-let lightModelSurface;           // Light surface object
-let shaderProgram;               // Shader program for basic rendering
-let lightShaderProgram;          // Shader program for light rendering
-let trackballRotator;            // Trackball for rotating the view
-let zoomLevel = -10;             // Initial zoom level
-const zoomIncrement = 1;         // Zoom step value
-const zoomInButton = document.getElementById('zoomIn');  // Zoom-in button element
-const zoomOutButton = document.getElementById('zoomOut'); // Zoom-out button element
-let lightPositionU = document.getElementById('lightU').value;  // Light U position
-let lightPositionV = document.getElementById('lightV').value;  // Light V position
+let zoomFactor = -10;           // Initial zoom factor.
+const zoomStep = 1;             // The step value for zooming in/out.
+const zoomIn = document.getElementById('zoomIn'); // Zoom-in button.
+const zoomOut = document.getElementById('zoomOut'); // Zoom-out button.
+let lightU = document.getElementById('lightU').value; // Initial light U-coordinate.
+let lightV = document.getElementById('lightV').value; // Initial light V-coordinate.  
 
-// Shader program constructor
+// Constructor for ShaderProgram to manage shaders.
 function ShaderProgram(name, program) {
     this.name = name;
     this.prog = program;
 
-    // Uniform and attribute locations
+    // Attributes and uniforms locations
     this.iAttribVertex = -1;
     this.iProjectionMatrix = -1;
     this.iModelMatrix = -1;
-
-    // Use the shader program
+    
+    // Use the shader program for rendering.
     this.Use = function() {
         gl.useProgram(this.prog);
-    }
+    };
 }
 
-// Main drawing function
+/* Draws the 3D scene */
 function draw() {
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clearColor(0, 0, 0, 1);                // Set background color to black
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clear color and depth buffers.
 
-    // Calculate light location based on inputs
-    let lightLocation = lightModelSurface.getLocation(lightPositionU, lightPositionV);
+    let lightLocation = lightSurface.getLocation(lightU, lightV); // Get the light source position.
 
-    // Prepare transformation matrices
-    let projectionMatrix = m4.perspective(Math.PI / 8, 1, 0.1, 100);
-    let viewMatrix = trackballRotator.getViewMatrix();
-    let rotationMatrix = m4.axisRotation([0.707, 0.707, 0], 0.7);
-    let translationMatrix = m4.translation(0, 0, zoomLevel);
-    let modelMatrix = m4.multiply(translationMatrix, m4.multiply(rotationMatrix, viewMatrix));
+    // Set up projection matrix for 3D perspective view.
+    let projection = m4.perspective(Math.PI / 8, 1, 0.1, 100); 
+    let trackballView = spaceball.getViewMatrix(); // Get the current camera view matrix.
+    let rotateToPointZero = m4.axisRotation([0.707, 0.707, 0], 0.7); // Rotation matrix.
+    let translateToPointZero = m4.translation(0, 0, zoomFactor); // Translation matrix for zoom effect.
 
-    // Light model transformations
-    let lightModelMatrix = m4.translation(lightLocation[0], lightLocation[1], lightLocation[2]);
-    lightModelMatrix = m4.multiply(viewMatrix, lightModelMatrix);
-    lightModelMatrix = m4.multiply(rotationMatrix, lightModelMatrix);
-    lightModelMatrix = m4.multiply(translationMatrix, lightModelMatrix);
+    // Combine model transformation matrices (rotation and translation).
+    let modelMatrix = m4.multiply(translateToPointZero, m4.multiply(rotateToPointZero, trackballView));
+    
+    // Calculate light's model matrix.
+    let lightModel = m4.translation(lightLocation[0], lightLocation[1], lightLocation[2]);
+    lightModel = m4.multiply(trackballView, lightModel);
+    lightModel = m4.multiply(rotateToPointZero, lightModel);
+    lightModel = m4.multiply(translateToPointZero, lightModel);
 
-    // Draw the model and light
-    shaderProgram.Use();
-    gl.uniformMatrix4fv(shaderProgram.iModelMatrix, false, modelMatrix);
-    gl.uniformMatrix4fv(shaderProgram.iProjectionMatrix, false, projectionMatrix);
-    gl.uniform4fv(shaderProgram.iLightLocation, m4.transformVector(lightModelMatrix, [0.0, 0.0, 0.0, 1.0], []));        
-    gl.uniform3fv(shaderProgram.iColor, [0.0, 0.0, 1.0]);
-    modelSurface.Draw();
+    // Set up shader program and pass in uniforms.
+    shProgram.Use();
+    gl.uniformMatrix4fv(shProgram.iModelMatrix, false, modelMatrix);
+    gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projection);
+    gl.uniform4fv(shProgram.iLightLocation, m4.transformVector(lightModel, [0.0, 0.0, 0.0, 1.0], []));        
+    gl.uniform1i(shProgram.iDiffuseTexture, 0);
+    gl.uniform1i(shProgram.iNormalTexture, 1);
+    gl.uniform1i(shProgram.iSpecularTexture, 2);
+    
+    // Draw the surface model.
+    surface.Draw();
 
-    lightShaderProgram.Use();
-    gl.uniformMatrix4fv(lightShaderProgram.iModelMatrix, false, lightModelMatrix);
-    gl.uniformMatrix4fv(lightShaderProgram.iProjectionMatrix, false, projectionMatrix);
-    lightModelSurface.Draw();
+    // Set up the light shader program.
+    shLightProgram.Use();
+    gl.uniformMatrix4fv(shLightProgram.iModelMatrix, false, lightModel);
+    gl.uniformMatrix4fv(shLightProgram.iProjectionMatrix, false, projection);
+
+    // Draw the light source model.
+    lightSurface.Draw();
 }
 
-// Initialize WebGL and set up the scene
-function init() {
-    let prog = create(gl, vertexShaderSource, fragmentShaderSource);
-    let progLight = create(gl, vertexLightShaderSource, fragmentLightShaderSource);
+/* Initializes the WebGL context and shaders */
+function initGL() {
+    let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource); // Compile the shaders.
+    let progLight = createProgram(gl, vertexLightShaderSource, fragmentLightShaderSource);
 
-    // Create shader programs
-    shaderProgram = new ShaderProgram('Basic', prog);
-    lightShaderProgram = new ShaderProgram('Light', progLight);
+    // Create shader programs for basic and light shaders.
+    shProgram = new ShaderProgram('Basic', prog);
+    shLightProgram = new ShaderProgram('Light', progLight);
 
-    // Set attribute and uniform locations for shader programs
-    shaderProgram.iAttribVertex = gl.getAttribLocation(prog, "in_vertex");
-    shaderProgram.iAttribNormal = gl.getAttribLocation(prog, "in_normal");
-    shaderProgram.iModelMatrix = gl.getUniformLocation(prog, "model");
-    shaderProgram.iProjectionMatrix = gl.getUniformLocation(prog, "projection");
-    shaderProgram.iLightLocation = gl.getUniformLocation(prog, "light_location");
-    shaderProgram.iColor = gl.getUniformLocation(prog, "color");
+    // Retrieve attribute and uniform locations for the basic shader.
+    shProgram.iAttribVertex = gl.getAttribLocation(prog, "in_vertex");
+    shProgram.iAttribUV = 1;
+    shProgram.iAttribTangent = 2;
+    shProgram.iAttribBitangent = 3;
+    shProgram.iModelMatrix = gl.getUniformLocation(prog, "model");
+    shProgram.iProjectionMatrix = gl.getUniformLocation(prog, "projection");
+    shProgram.iLightLocation = gl.getUniformLocation(prog, "light_location");
+    
+    shProgram.iDiffuseTexture = gl.getUniformLocation(prog, "diffuse_texture");
+    shProgram.iNormalTexture = gl.getUniformLocation(prog, "normal_texture");
+    shProgram.iSpecularTexture = gl.getUniformLocation(prog, "specular_texture");
 
-    lightShaderProgram.iAttribVertex = gl.getAttribLocation(progLight, "in_vertex");
-    lightShaderProgram.iProjectionMatrix = gl.getUniformLocation(progLight, "projection");
-    lightShaderProgram.iModelMatrix = gl.getUniformLocation(progLight, "model");
+    // Retrieve attribute and uniform locations for the light shader.
+    shLightProgram.iAttribVertex = gl.getAttribLocation(progLight, "in_vertex");
+    shLightProgram.iProjectionMatrix = gl.getUniformLocation(progLight, "projection");
+    shLightProgram.iModelMatrix = gl.getUniformLocation(progLight, "model");
 
-    // Create model and light surfaces
-    modelSurface = new Model(gl, shaderProgram);
-    modelSurface.CreateSurfaceData();
-    lightModelSurface = new Light(gl, lightShaderProgram, lightPositionU, lightPositionV);
+    // Create the surface and light surface models.
+    surface = new Model(gl, shProgram);
+    surface.CreateSurfaceData();
+    lightSurface = new Light(gl, shLightProgram, lightU, lightV);
 
-    // Enable depth testing
+    // Enable depth testing for proper 3D rendering.
     gl.enable(gl.DEPTH_TEST);
 }
 
-// Function to create and compile shaders
-function create(gl, vShaderSource, fShaderSource) {
-    let vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, vShaderSource);
-    gl.compileShader(vertexShader);
-    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-        throw new Error("Error in vertex shader: " + gl.getShaderInfoLog(vertexShader));
+/* Helper function to create a shader program from vertex and fragment shaders */
+function createProgram(gl, vShader, fShader) {
+    let vsh = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vsh, vShader);
+    gl.compileShader(vsh);
+    if (!gl.getShaderParameter(vsh, gl.COMPILE_STATUS)) {
+        throw new Error("Error in vertex shader: " + gl.getShaderInfoLog(vsh));
     }
 
-    let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, fShaderSource);
-    gl.compileShader(fragmentShader);
-    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-        throw new Error("Error in fragment shader: " + gl.getShaderInfoLog(fragmentShader));
+    let fsh = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fsh, fShader);
+    gl.compileShader(fsh);
+    if (!gl.getShaderParameter(fsh, gl.COMPILE_STATUS)) {
+        throw new Error("Error in fragment shader: " + gl.getShaderInfoLog(fsh));
     }
 
-    let program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        throw new Error("Link error in program: " + gl.getProgramInfoLog(program));
+    // Create the program and link the shaders.
+    let prog = gl.createProgram();
+    gl.attachShader(prog, vsh);
+    gl.attachShader(prog, fsh);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        throw new Error("Link error in program: " + gl.getProgramInfoLog(prog));
     }
-    return program;
+    return prog;
 }
 
-// Update function to regenerate surface data and redraw
-function update() {
-    modelSurface.CreateSurfaceData();
+/* Updates surface data and redraws */
+function update(){
+    surface.CreateSurfaceData();
     draw();
 }
 
-// Event listeners for zoom and light position controls
-zoomInButton.addEventListener('click', () => {
-    zoomLevel += zoomIncrement;
+// Event listeners for zoom in/out buttons and light controls
+zoomIn.addEventListener('click', () => {
+    zoomFactor += zoomStep;
     draw();
 });
 
-zoomOutButton.addEventListener('click', () => {
-    zoomLevel -= zoomIncrement;
+zoomOut.addEventListener('click', () => {
+    zoomFactor -= zoomStep;
     draw();
 });
 
 document.getElementById('lightU').addEventListener('input', (event) => {
-    lightPositionU = parseFloat(event.target.value);
+    lightU = parseFloat(event.target.value); // Update light U-coordinate.
     draw();
 });
 
 document.getElementById('lightV').addEventListener('input', (event) => {
-    lightPositionV = parseFloat(event.target.value);
+    lightV = parseFloat(event.target.value); // Update light V-coordinate.
     draw();
 });
 
-// Event listeners for surface data changes
-document.getElementById('circleCount').addEventListener('change', update);
-document.getElementById('segmentsCount').addEventListener('change', update);
+document.getElementById('circleCount').addEventListener('change', update); // Update surface data on change.
+document.getElementById('segmentsCount').addEventListener('change', update); // Update surface data on change.
+document.addEventListener('draw', draw); // Trigger redraw event.
 
-// Initialize WebGL and set up the app
-function initializeApp() {
+/* Initialize the app */
+function init() {
     let canvas;
     try {
+        // Get the WebGL context from the canvas element.
         canvas = document.getElementById("webglcanvas");
         gl = canvas.getContext("webgl2");
         if (!gl) {
-            throw "Browser does not support WebGL";
+            throw "Browser does not support WebGL"; // Handle WebGL context error.
         }
     } catch (e) {
         document.getElementById("canvas-holder").innerHTML = "<p>Sorry, could not get a WebGL graphics context.</p>";
@@ -172,18 +186,17 @@ function initializeApp() {
     }
 
     try {
-        init();
+        initGL(); // Initialize WebGL shaders and objects.
     } catch (e) {
-        document.getElementById("canvas-holder").innerHTML = "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
+        document.getElementById("canvas-holder").innerHTML =
+            "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
         return;
     }
 
-    // Initialize trackball rotator
-    trackballRotator = new TrackballRotator(canvas, draw, 0);
+    // Initialize TrackballRotator for camera control.
+    spaceball = new TrackballRotator(canvas, draw, 0);
 
-    // Initial drawing
-    draw();
+    draw(); // Initial draw call to render the scene.
 }
 
-// Wait for the DOM to load before initializing
-document.addEventListener("DOMContentLoaded", initializeApp);
+document.addEventListener("DOMContentLoaded", init); // Initialize the app after the DOM is loaded.

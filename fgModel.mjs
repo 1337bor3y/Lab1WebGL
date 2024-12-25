@@ -1,93 +1,129 @@
-export default function Model(gl, shaderProgram) {
+import LoadTexture from "./TextureHandler.mjs"
+
+// Model constructor function
+export default function Model(gl, shProgram) {
+    // WebGL context and shader program
     this.gl = gl;
-    this.vertexBuffer = gl.createBuffer();  // Buffer for storing vertex data
-    this.vertexCount = 0;                   // Number of vertices to draw
-    this.drawMode = gl.TRIANGLES;           // Drawing mode (TRIANGLES)
 
-    // Method to load vertex data into the buffer
+    // Vertex buffer object for storing vertex data
+    this.iVertexBuffer = gl.createBuffer();
+
+    // Number of vertices
+    this.count = 0;
+
+    // Primitive drawing type (triangles in this case)
+    this.type = gl.TRIANGLES;
+
+    // Texture IDs for diffuse, normal, and specular maps
+    this.idTextureDiffuse = 0;
+    this.idTextureNormal = 0;
+    this.idTextureSpecular = 0;
+
+    // Function to upload vertex data to the GPU buffer
     this.BufferData = function(vertices) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
-        this.vertexCount = vertices.length / 6;  // Number of vertices is length divided by 6 (x, y, z, normal)
+        this.count = vertices.length / 11; // Each vertex has 11 components
     }
 
-    // Method to bind buffers and draw the surface
+    // Function to draw the model using the current buffer data
     this.Draw = function() {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-        
-        // Bind and enable vertex position attribute
-        gl.vertexAttribPointer(shaderProgram.iAttribVertex, 3, gl.FLOAT, false, 24, 0);
-        gl.enableVertexAttribArray(shaderProgram.iAttribVertex);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
 
-        // Bind and enable vertex normal attribute
-        gl.vertexAttribPointer(shaderProgram.iAttribNormal, 3, gl.FLOAT, false, 24, 12);
-        gl.enableVertexAttribArray(shaderProgram.iAttribNormal);
-        
-        gl.drawArrays(this.drawMode, 0, this.vertexCount);  // Draw the triangles
+        // Set vertex attributes for position, UVs, tangent, and bitangent
+        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 44, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribVertex);
+        gl.vertexAttribPointer(shProgram.iAttribUV, 2, gl.FLOAT, false, 44, 12);
+        gl.enableVertexAttribArray(shProgram.iAttribUV);
+        gl.vertexAttribPointer(shProgram.iAttribTangent, 3, gl.FLOAT, false, 44, 20);
+        gl.enableVertexAttribArray(shProgram.iAttribTangent);
+        gl.vertexAttribPointer(shProgram.iAttribBitangent, 3, gl.FLOAT, false, 44, 32);
+        gl.enableVertexAttribArray(shProgram.iAttribBitangent);
+
+        // Bind textures to corresponding texture units
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureDiffuse);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureNormal);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureSpecular);
+
+        // Draw the object
+        gl.drawArrays(this.type, 0, this.count);
     }
 
-    // Method to generate a vertex based on angle, normal, and radius values
-    this.CreateVertex = function(angle, normal, radiusStep, radius, beta) {
-        const x = radius * Math.cos(beta),
-              y = radius * Math.sin(beta),
-              z = angle * Math.cos(normal * Math.PI * radius / radiusStep);
-        return [x, y, z];  // Return vertex coordinates
+    // Function to create a vertex with spherical coordinates
+    this.CreateVertex = function(a, n, R, r, b) {
+        const x = r * Math.cos(b),
+              y = r * Math.sin(b),
+              z = a * Math.cos(n * Math.PI * r / R);
+        // Return the vertex as an array with position and UV coordinates
+        return [x, y, z, r, b / (2 * Math.PI)];
     }
 
-    // Method to generate points along a radius
+    // Function to generate points along a line using the given step and constructor
     this.GenerateLinePoints = function(radiusStep, radius, pointConstructor) {
-        let points = [];
-        
+        let vertexList = [];
         for (let r = 0; r <= radius; r += radiusStep) {
-            points.push(pointConstructor(r));  // Add generated points
+            vertexList.push(pointConstructor(r)); // Create points using the constructor
         }
-
-        return points;
+        return vertexList;
     }
 
-    // Method to calculate normal vector of a triangle formed by three points
-    this.CalculateNormal = function(pointA, pointB, pointC) {
-        let vectorA = m4.normalize(m4.subtractVectors(pointB, pointA, []), []);  // Vector from A to B
-        let vectorB = m4.normalize(m4.subtractVectors(pointC, pointA, []), []);  // Vector from A to C
-        let normal = m4.cross(vectorA, vectorB, []);  // Cross product to get normal
+    // Function to calculate the tangent and bitangent of a triangle given three vertices
+    this.CalculateTangentAndBitangent = function(v0, v1, v2) {
+        let edge1 = m4.subtractVectors(v1, v0, []);
+        let edge2 = m4.subtractVectors(v2, v0, []);
+        let normal = m4.normalize(m4.cross(edge1, edge2, []), [0.0, 1.0, 0.0]);
 
-        return normal;
+        // Calculate the tangent vector
+        let tangent = m4.normalize(m4.subtractVectors(edge1, m4.scaleVector(normal, m4.dot(normal, edge1), []), []));
+        // Calculate the bitangent vector
+        let bitangent = m4.normalize(m4.cross(normal, tangent, []), []);
+
+        // Return both the tangent and bitangent vectors
+        return [...tangent, ...bitangent];
     }
 
-    // Method to create surface data based on the number of circles and segments
+    // Function to create surface data (vertex positions, normals, etc.)
     this.CreateSurfaceData = function() {
-        const angle = 0.1, normal = 1, radiusStep = 0.1;  // Constants for vertex calculation
-        let vertices = [];  // List to hold vertex data
+        const a = 0.1, n = 1, R = 0.1; // Parameters for vertex creation
+        let vertexList = []; // List to hold the vertices
+
         let radius = 1;
-        
-        let radiusStepValue = radius / parseInt(document.getElementById('circleCount').value);
-        let segmentStepValue = (2 * Math.PI) / parseInt(document.getElementById('segmentsCount').value);
-                
-        // Loop through segments and generate vertices for each
-        for (let beta = segmentStepValue; beta <= 2 * Math.PI + 0.001; beta += segmentStepValue) {
-            let firstLine = this.GenerateLinePoints(radiusStepValue, radius, (r) => {
-                return this.CreateVertex(angle, normal, radiusStep, r, beta); 
-            });
-            let secondLine = this.GenerateLinePoints(radiusStepValue, radius, (r) => {
-                return this.CreateVertex(angle, normal, radiusStep, r, beta - segmentStepValue); 
-            });
+        // Calculate step sizes for radius and segments
+        let radiusStep = radius / parseInt(document.getElementById('circleCount').value);
+        let segmentStep = (2 * Math.PI) / parseInt(document.getElementById('segmentsCount').value);
 
-            // Loop through the vertices and calculate normals for each triangle
-            for(let i = 1; i < firstLine.length; ++i) {
-                let firstNormal = this.CalculateNormal(firstLine[i - 1], secondLine[i], firstLine[i]);
-                let secondNormal = this.CalculateNormal(firstLine[i - 1], secondLine[i], secondLine[i - 1]);
+        // Loop over all segments to generate the surface
+        for (let beta = segmentStep; beta <= 2 * Math.PI + 0.001; beta += segmentStep) {
+            // Generate points for two lines (current and previous segment)
+            let firstLine = this.GenerateLinePoints(radiusStep, radius, (r) => { return this.CreateVertex(a, n, R, r, beta); });
+            let secondLine = this.GenerateLinePoints(radiusStep, radius, (r) => { return this.CreateVertex(a, n, R, r, beta - segmentStep); });
 
-                // Add vertices with normals for each triangle
-                vertices.push(...firstLine[i - 1], ...firstNormal);
-                vertices.push(...secondLine[i], ...firstNormal);
-                vertices.push(...firstLine[i], ...firstNormal);
+            // Create triangles by connecting the lines
+            for(let index = 1; index < firstLine.length; ++index) {
+                // Calculate tangent and bitangent for each vertex
+                let firstNormal = this.CalculateTangentAndBitangent(firstLine[index - 1], secondLine[index], firstLine[index]);
+                let secondNormal = this.CalculateTangentAndBitangent(firstLine[index - 1], secondLine[index], secondLine[index - 1]);
 
-                vertices.push(...firstLine[i - 1], ...secondNormal);
-                vertices.push(...secondLine[i], ...secondNormal);
-                vertices.push(...secondLine[i - 1], ...secondNormal);
+                // Push the vertex data (positions, normals) into the vertex list
+                vertexList.push(...firstLine[index - 1], ...firstNormal);
+                vertexList.push(...secondLine[index], ...firstNormal);
+                vertexList.push(...firstLine[index], ...firstNormal);
+
+                vertexList.push(...firstLine[index - 1], ...secondNormal);
+                vertexList.push(...secondLine[index], ...secondNormal);
+                vertexList.push(...secondLine[index - 1], ...secondNormal);
             }
         }
-        
-        this.BufferData(vertices);  // Upload vertex data to buffer
+
+        // Upload the vertex data to the GPU buffer
+        this.BufferData(vertexList);
+
+        // Load textures for diffuse, normal, and specular maps
+        this.idTextureDiffuse = LoadTexture(gl, "./textures/diffuse.jpg");
+        this.idTextureNormal = LoadTexture(gl, "./textures/normal.jpg");
+        this.idTextureSpecular = LoadTexture(gl, "./textures/specular.jpg");
     }
 }
