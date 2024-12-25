@@ -1,32 +1,138 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surface Revolution Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #74ebd5, #9face6);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+        }
 
-<title>PA#1</title>
-<style>
-    body {
-        background-color: #EEEEEE;
+        h2 {
+            margin-top: 20px;
+            font-size: 1.8rem;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls {
+        display: flex;
+        justify-content: space-between; 
+        flex-wrap: wrap; 
+        gap: 16px; 
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 900px;
+        margin: 20px auto; 
     }
-</style>
 
-<script src="./Utils/trackball-rotator.js"></script>
-<script src="./Utils/m4.js"></script>
-<script src="./shader.gpu"></script>
-<script src="./Model.js"></script>
-<script src="./main.js"></script>
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
 
+        .control-group label {
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .control-group input[type="number"],
+        .control-group input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        #canvas-holder {
+            position: relative;
+            margin: 20px auto;
+            border: 2px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #webglcanvas {
+            display: block;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .zoom-controls button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .zoom-controls button:hover {
+            background: #45a049;
+        }
+    </style>
 </head>
-<body onload="init()">
 
-<h2>A Cube with "Trackball" Mouse Rotation</h2>
+<body>
+    <h2>Surface Revolution of a Sinusoid</h2>
 
-<p id="message">Drag your mouse on the cube to rotate it.<br>
-(On a touch screen, you can use your finger.)</p>
+    <div id="canvas-holder">
+        <canvas id="webglcanvas" width="700" height="700"></canvas>
+        <div class="zoom-controls">
+            <button id="zoomIn">+</button>
+            <button id="zoomOut">-</button>
+        </div>
+    </div>
 
+    <script defer type="module" src="./main.mjs"></script>
+    <script src="./light.glsl"></script>
+    <script src="./shader.glsl"></script>
+    <script src="./Utils/m4.js"></script>
 
-<div id="canvas-holder">
-   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
-</div>
+    <div class="controls">
+        <div class="control-group">
+            <label for="circleCount">Circles:</label>
+            <input type="number" id="circleCount" min="10" max="100" step="1" value="20" onchange="update()">
+        </div>
+        <div class="control-group">
+            <label for="segmentsCount">Segments:</label>
+            <input type="number" id="segmentsCount" min="100" max="500" step="10" value="200" onchange="update()">
+        </div>
+        <div class="control-group">
+            <label for="lightU">Light U:</label>
+            <input type="range" id="lightU" min="0" max="360" step="1" value="0">
+        </div>
+        <div class="control-group">
+            <label for="lightV">Light V:</label>
+            <input type="range" id="lightV" min="0" max="360" step="1" value="0">
+        </div>
+    </div>
+</body>
 
-
-</body></html>
+</html>
