@@ -1,112 +1,169 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Surface Revolution Visualizer</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>CGW</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #74ebd5, git#9face6);
-            color: #333;
+            background-color: #2C3E50; 
             display: flex;
+            justify-content: center;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            height: 100vh;
+            margin: 0;
         }
 
         h2 {
-            margin-top: 20px;
-            font-size: 1.8rem;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+            color: #ECF0F1;
+            margin-bottom: 30px;
         }
 
-        .controls {
-        display: flex;
-        justify-content: space-between; 
-        flex-wrap: wrap; 
-        gap: 16px; 
-        padding: 20px;
-        background: rgba(255, 255, 255, 0.8);
-        border-radius: 10px;
-        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-        width: 100%;
-        max-width: 900px;
-        margin: 20px auto; 
-    }
-
-        .control-group {
+        .inputContainer {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            margin-bottom: 20px;
             align-items: flex-start;
         }
 
-        .control-group label {
-            margin-bottom: 8px;
-            font-weight: bold;
+        .inputContainer p {
+            margin: 0;
+            font-size: 16px;
+            color: #BDC3C7;
         }
 
-        .control-group input[type="number"],
-        .control-group input[type="range"] {
-            width: 100%;
+        .inputContainer input {
+            border: 2px solid #BDC3C7;
+            border-radius: 8px;
             padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
+            width: 200px;
+            font-size: 16px;
+            margin-top: 5px;
+            transition: border 0.3s ease-in-out;
+        }
+
+        .inputContainer input:focus {
+            border: 2px solid #007BFF;
+            outline: none;
+        }
+
+        button {
+            background-color: #3498DB;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #2980B9;
+        }
+
+        .canvas-container {
+            position: relative;
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: row;
+            margin-bottom: 40px;
+        }
+
+        #coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 14px;
+            color: #BDC3C7;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 3px;
         }
 
         #canvas-holder {
-            position: relative;
-            margin: 20px auto;
-            border: 2px solid #fff;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        #webglcanvas {
-            display: block;
-        }
-
-        .zoom-controls {
+        #zoomIn,
+        #zoomOut {
             position: absolute;
             bottom: 10px;
-            right: 10px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .zoom-controls button {
-            background: #4CAF50;
+            background-color: #28a745;
             color: white;
-            border: none;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 1.2rem;
-            font-weight: bold;
+            width: 35px;
+            height: 35px;
+            font-size: 20px;
             cursor: pointer;
-            box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.2);
+            border: none;
+            transition: background-color 0.3s ease-in-out;
         }
 
-        .zoom-controls button:hover {
-            background: #45a049;
+        #zoomIn:hover,
+        #zoomOut:hover {
+            background-color: #218838;
+        }
+
+        #zoomOut {
+            right: 50px;
+        }
+
+        .panel {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            background-color: rgba(44, 62, 80, 0.9);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
     </style>
 </head>
 
 <body>
-    <h2>Surface Revolution of a Sinusoid</h2>
+    <h2>Surface of Revolution of a General Sinusoid</h2>
 
-    <div id="canvas-holder">
-        <canvas id="webglcanvas" width="700" height="700"></canvas>
-        <div class="zoom-controls">
-            <button id="zoomIn">+</button>
-            <button id="zoomOut">-</button>
+    <div class="canvas-container">
+        <p id="coordinates">Coordinates: (0, 0)</p>
+        <canvas width="400" height="400" id="uvcanvas"></canvas>
+        <canvas width="400" height="400" id="webglcanvas"></canvas>
+        <button id="zoomIn">+</button>
+        <button id="zoomOut">-</button>
+    </div>
+
+    <div class="panel">
+        <div class="inputContainer">
+            <p>Circles:</p>
+            <input type="number" name="circleCount" id="circleCount" min="10" max="100" step="1" value="500" onchange="update()">
+        </div>
+
+        <div class="inputContainer">
+            <p>Segments:</p>
+            <input type="number" name="segmentsCount" id="segmentsCount" min="100" max="500" step="10" value="500" onchange="update()">
+        </div>
+
+        <div class="inputContainer">
+            <p>Light U:</p>
+            <input type="range" name="lightU" id="lightU" min="0" max="360" step="1" value="0">
+        </div>
+
+        <div class="inputContainer">
+            <p>Light V:</p>
+            <input type="range" name="lightV" id="lightV" min="0" max="360" step="1" value="0">
+        </div>
+
+        <div class="inputContainer">
+            <p>Angle:</p>
+            <input type="range" name="Angle" id="Angle" min="0" max="360" step="1" value="0">
         </div>
     </div>
 
@@ -114,25 +171,6 @@
     <script src="./light.glsl"></script>
     <script src="./shader.glsl"></script>
     <script src="./Utils/m4.js"></script>
-
-    <div class="controls">
-        <div class="control-group">
-            <label for="circleCount">Circles:</label>
-            <input type="number" id="circleCount" min="10" max="100" step="1" value="20" onchange="update()">
-        </div>
-        <div class="control-group">
-            <label for="segmentsCount">Segments:</label>
-            <input type="number" id="segmentsCount" min="100" max="500" step="10" value="200" onchange="update()">
-        </div>
-        <div class="control-group">
-            <label for="lightU">Light U:</label>
-            <input type="range" id="lightU" min="0" max="360" step="1" value="0">
-        </div>
-        <div class="control-group">
-            <label for="lightV">Light V:</label>
-            <input type="range" id="lightV" min="0" max="360" step="1" value="0">
-        </div>
-    </div>
 </body>
 
 </html>
